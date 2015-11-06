@@ -118,37 +118,53 @@ Behaviour: If there is no Player near that Group for ai_cache_units_refreeze the
 Addition: None
 **/
 while {true} do {
-_matchingObjectsArray = ((units _unitGroup) select 0) nearEntities ["CAManBase",ai_cache_units_reactivation_range];
-if(!isnil "_matchingObjectsArray") then {
-  _numberOfMatchingObjectsNumber = (count _matchingObjectsArray);
-  if (_numberOfMatchingObjectsNumber >= 1) then {
-   _state = _unitGroup getVariable["FrozenState",[time,true]];
-   _timeFroze = _state select 0;
-   _stateFroze = _state select 1;
-   _playerPresent = false;
-   _playerName = "";
-   {
-    if(isPlayer _x) exitWith {
-     _playerPresent = true;
-     _playerName = _x;
-    };
-   } foreach _matchingObjectsArray;
-   if (_stateFroze) then {
-    if (_playerPresent) then {
-     if (ai_cache_units_freeze_log) then {
-      diag_log(format["[DEBUG] %1 Triggered Un-Freezing of Group: %2", _playerName, _unitGroup]);
-     };
-     [_unitGroup] spawn fnc_unfreeze;
-    };
-   } else {
-    if (!_playerPresent && ((time - _timeFroze) > ai_cache_units_refreeze)) then {
-     if (ai_cache_units_freeze_log) then {
-      diag_log(format["[DEBUG] Re-Freezing Group: %1", _unitGroup]);
-     };
-     [_unitGroup] spawn fnc_freeze;
-    };
-   };
-  };
-};
-sleep 15;
+	sleep 15;
+	if(isNull _unitGroup) exitWith { diag_log "Exiting freez-unfreeze loop"; };
+	_state = _unitGroup getVariable["FrozenState",[time,true]];
+	_timeFroze = _state select 0;
+	_stateFroze = _state select 1;
+	_playerPresent = false;
+	_playerName = "";
+	// Look for players near
+	_matchingObjectsArray = ((units _unitGroup) select 0) nearEntities ["CAManBase",ai_cache_units_reactivation_range];
+	if(!isnil "_matchingObjectsArray") then {
+		{
+			if(isPlayer _x) exitWith {
+				_playerPresent = true;
+				_playerName = _x;
+			};
+		} foreach _matchingObjectsArray;
+	};
+	// If not players around then look for players in vehicles
+	if(! _playerPresent) then {
+		_vehiclesArray = ((units _unitGroup) select 0) nearEntities [["Air", "Car", "Motorcycle", "Tank"],ai_cache_units_reactivation_range];
+		if(!isnil "_vehiclesArray") then { 
+			_playerFound = false;
+			{
+				_crewArray = crew _x;
+				{
+					if((isPlayer _x) && (alive _x)) exitWith {
+						_playerName = _x;
+						_playerFound = true;
+					};
+				} foreach _crewArray;
+				if(_playerFound) exitWith { _playerPresent = true; };
+			} foreach _vehiclesArray;
+		};
+	};
+	if (_stateFroze) then {
+		if(_playerPresent) then {
+			[_unitGroup] spawn fnc_unfreeze;
+			if (ai_cache_units_freeze_log) then {
+				diag_log(format["[DEBUG] %1 Triggered Un-Freezing of Group: %2", _playerName, _unitGroup]);
+			};
+		};
+	} else {
+		if (!_playerPresent && ((time - _timeFroze) > ai_cache_units_refreeze)) then {
+			[_unitGroup] spawn fnc_freeze;
+			if (ai_cache_units_freeze_log) then {
+				diag_log(format["[DEBUG] Re-Freezing Group: %1", _unitGroup]);
+			};
+		};
+	};
 };
